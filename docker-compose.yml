@@ -1,0 +1,112 @@
+version: '3.8'
+services:
+    reverse-proxy:
+        image: traefik:v2.3
+        ports:
+        - 80:80
+        - 443:443
+        command:
+        - --api
+        - --log.level=WARN
+        - --providers.docker
+        - --providers.docker.endpoint=unix:///var/run/docker.sock
+        - --providers.docker.exposedbydefault=false
+        - --providers.docker.swarmmode
+        - --providers.docker.watch=true
+        - --entrypoints.web.address=:80
+        - --entrypoints.websecure.address=:443
+        volumes:
+        - /var/run/docker.sock:/var/run/docker.sock:ro
+        networks:
+        - traefik-public
+        deploy:
+            labels:
+            - traefik.enable=true
+            - traefik.docker.network=traefik-public
+            - traefik.http.routers.traefik-public-http.rule=Host(`${DOMAIN}`, `www.${DOMAIN}`)
+            - traefik.http.routers.traefik-public-http.entrypoints=web, websecure
+            - traefik.http.routers.traefik-public-http.service=api@internal
+            - traefik.http.services.traefik-public.loadbalancer.server.port=8080
+
+    elasticsearch:
+        image: 'docker.elastic.co/elasticsearch/elasticsearch-oss:7.9.2-amd64'
+        command: ["elasticsearch", "-Elogger.level=WARN"]
+        depends_on:
+        - reverse-proxy
+        deploy:
+            labels:
+            - traefik.enable=false
+        networks:
+        - backend
+
+    db:
+        image: postgres:13
+        volumes:
+        - db-data:/var/lib/postgresql/data/pgdata
+        environment:
+        - PGDATA=/var/lib/postgresql/data/pgdata
+        - POSTGRES_USER=postgres
+        - POSTGRES_PASSWORD=postgres
+        depends_on:
+        - reverse-proxy
+        deploy:
+            labels:
+            - traefik.enable=false
+        networks:
+        - backend
+
+    api:
+        # image: 'nikhiltiru/dms:0.4'
+        image: 709721532782.dkr.ecr.us-west-1.amazonaws.com/project_dms:${TAG}
+        environment:
+        - ELASTIC_HOST=elasticsearch
+        - ELASTIC_PORT=9200
+        - ELASTIC_PORT_1=9300
+        - POSTGRES_HOST=db
+        - POSTGRES_PORT=5432
+        # env_file:
+        # - .config
+        volumes:
+        - .config:/home/.config:ro
+        depends_on:
+        - elasticsearch
+        - db
+        - reverse-proxy
+        deploy:
+            labels:
+            - traefik.enable=true
+            - traefik.docker.network=traefik-public
+            - traefik.http.routers.api-http.rule=Host(`api.${DOMAIN}`)
+            - traefik.http.routers.api-http.entrypoints=web, websecure
+            - traefik.http.routers.api-http.service=api
+            - traefik.http.services.api.loadbalancer.server.port=8000
+        networks:
+        - traefik-public
+        - backend
+
+    # TODO: delete later
+    whoami:
+        image: traefik/whoami
+        depends_on:
+        - reverse-proxy
+        deploy:
+            labels:
+            - traefik.enable=true
+            - traefik.docker.network=traefik-public
+            - traefik.http.routers.whoami-http.rule=Host(`${DOMAIN}`, `www.${DOMAIN}`) && PathPrefix(`/whoami`)
+            - traefik.http.routers.whoami-http.entrypoints=web, websecure
+            - traefik.http.routers.whoami-http.middlewares=whoami-stripprefix
+            - traefik.http.middlewares.whoami-stripprefix.stripprefix.prefixes=/whoami
+            - traefik.http.routers.whoami-http.service=whoami
+            - traefik.http.services.whoami.loadbalancer.server.port=80
+        networks:
+        - traefik-public
+
+volumes:
+  db-data:
+
+networks:
+    traefik-public:
+        external: true
+    backend:
+        external: true

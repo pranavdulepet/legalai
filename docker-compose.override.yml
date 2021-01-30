@@ -1,0 +1,55 @@
+version: '3.8'
+services:
+    reverse-proxy:
+        ports:
+        - 80:80
+        - 443:443
+        command:
+        - --api.insecure=true
+        - --log.level=INFO
+        - --providers.docker
+        - --providers.docker.endpoint=unix:///var/run/docker.sock
+        - --providers.docker.exposedbydefault=false
+        - --providers.docker.swarmmode=false
+        - --providers.docker.watch=true
+        labels:
+        - traefik.enable=true
+        - traefik.docker.network=${REPO_NAME}_traefik-public
+        - traefik.http.routers.traefik-public-http.rule=Host(`${DOMAIN}`, `www.${DOMAIN}`)
+        - traefik.http.routers.traefik-public-http.service=api@internal
+        - traefik.http.services.traefik-public.loadbalancer.server.port=8080
+    api:
+        build: ./app
+        volumes:
+        - ${HOME}/.aws:/root/.aws
+        - ./app:/home
+        command: ./start-reload.sh
+        labels:
+        - traefik.enable=true
+        - traefik.docker.network=${REPO_NAME}_traefik-public
+        - traefik.http.routers.api-http.rule=Host(`api.${DOMAIN}`, `www.api.${DOMAIN}`)
+        - traefik.http.routers.api-http.service=api
+        - traefik.http.services.api.loadbalancer.server.port=8000
+    elasticsearch:
+        environment:
+        - discovery.type=single-node
+        ports:
+        - 9200:9200
+    db:
+        ports:
+        - 5432:5432
+    whoami:
+        labels:
+        - traefik.enable=true
+        - traefik.docker.network=${REPO_NAME}_traefik-public
+        - traefik.http.routers.whoami-http.rule=Host(`${DOMAIN}`, `www.${DOMAIN}`) && PathPrefix(`/whoami`)
+        - traefik.http.routers.whoami-http.middlewares=whoami-stripprefix
+        - traefik.http.middlewares.whoami-stripprefix.stripprefix.prefixes=/whoami
+        - traefik.http.routers.whoami-http.service=whoami
+        - traefik.http.services.whoami.loadbalancer.server.port=80
+
+networks:
+    traefik-public:
+        external: false
+    backend:
+        external: false
