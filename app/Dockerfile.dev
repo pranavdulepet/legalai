@@ -1,0 +1,17 @@
+FROM python:3.8-buster
+
+RUN apt update && apt install -y vim wget curl gcc g++ libpq-dev
+
+WORKDIR /home
+
+COPY requirements.dev.txt .
+
+RUN ["python", "-m", "pip", "install", "--upgrade", "pip"]
+RUN ["python", "-m", "pip", "install", "-r", "requirements.dev.txt"]
+RUN ["python", "-c", "import nltk; nltk.download('stopwords')"]
+RUN ["python", "-m", "spacy", "download", "en_core_web_md"]
+
+EXPOSE 8000
+
+# on startup
+CMD ["uvicorn", "app:app", "--reload", "--host", "0.0.0.0", "--port", "8000"]
