@@ -2,7 +2,7 @@
 
 This repository contains code for a Document Management System.
 
-The following features are implemented:
+Features:
 * Document Classification
 * Document Similarity
 * Document Search
@@ -13,7 +13,7 @@ The following features are implemented:
 ## Run
 
 ### Prerequisites
-Install docker, docker-compose and aws cli on your machine.
+Install docker, docker-compose, and aws cli on your machine.
 Setup aws cli credentials with admin priviledges.
 
 ### Local Development
@@ -119,7 +119,7 @@ If there is insufficient storage in your PC do:
 > }'
 
 ### Docker
-If docker gives permission denied, try either of these:
+If docker says permission denied, try:
 
 > sudo chmod 666 /var/run/docker.sock
 
